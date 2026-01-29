@@ -1,20 +1,32 @@
-version: '3.8'
-
 services:
+  reader:
+    image: ghcr.io/intergalacticalvariable/reader:latest
+    container_name: reader-container
+    ports:
+      - "3000:3000"
+    volumes:
+      - local_storage:/app/local-storage
+    networks:
+      - reader-network
+
   reader-mcp:
     build:
       context: .
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"  # Deno/Reader service
-      - "8000:8000"  # Go MCP server
-    volumes:
-      - ./screenshots:/app/local-storage
+      dockerfile: Dockerfile.mcp
+    container_name: reader-mcp-container
     environment:
-      READER_URL: "http://localhost:3000"
-      MCP_PORT: "8000"
-      PUPPETEER_EXECUTABLE_PATH: "/usr/bin/google-chrome-stable"
-    restart: unless-stopped
-    cap_add:
-      - SYS_ADMIN
-    shm_size: 2gb
+      - READER_ENDPOINT=http://reader-container:3000
+      - PORT=8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      - reader
+    networks:
+      - reader-network
+
+volumes:
+  local_storage:
+
+networks:
+  reader-network:
+    driver: bridge

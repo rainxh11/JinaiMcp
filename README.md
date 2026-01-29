@@ -1,191 +1,103 @@
 # Reader MCP Server
 
-A FastMCP server that provides tools to convert URLs to LLM-friendly formats using the Reader service. Built with **Deno + Hono** for the Reader service and **Go** for the MCP server with Streamable HTTP transport!
+An MCP (Model Context Protocol) server that provides tools for fetching web content in various formats (Markdown, HTML, text, and screenshots) using the [Reader](https://github.com/intergalacticalvariable/reader) service.
 
 ## Features
 
-This MCP server provides 5 tools:
-
-1. **get_markdown** - Convert a URL to markdown format (bypasses readability processing)
-2. **get_html** - Convert a URL to HTML format (returns documentElement.outerHTML)
-3. **get_text** - Convert a URL to plain text format (returns document.body.innerText)
-4. **get_screenshot** - Take a screen-size screenshot of a URL
-5. **get_pageshot** - Take a full-page screenshot of a URL
-
-## Tech Stack
-
-- **Reader Service**: Deno + Hono + Puppeteer
-- **MCP Server**: Go with Streamable HTTP transport
-- **Base Image**: browserless/chrome (Chrome/Puppeteer pre-installed)
-- **Transport**: Streamable HTTP (bidirectional streaming over HTTP)
+- **fetch_markdown**: Fetch a webpage and return its content as Markdown (bypasses readability processing)
+- **fetch_html**: Fetch a webpage and return its HTML (documentElement.outerHTML)
+- **fetch_text**: Fetch a webpage and return its text content (document.body.innerText)
+- **fetch_screenshot**: Fetch a screen-size screenshot of a webpage
+- **fetch_pageshot**: Fetch a full-page screenshot of a webpage
 
 ## Quick Start with Docker
 
-### Using Docker Compose (Recommended)
+The easiest way to run both the Reader service and MCP server is using Docker Compose:
 
 ```bash
 docker-compose up -d
 ```
 
-### Using Docker directly
+This will:
+- Start the Reader service on port 3000
+- Start the MCP server on port 8080 with SSE transport
+
+## Setup
+
+### 1. Start the Services
 
 ```bash
-docker build -t reader-mcp .
-docker run -d -p 3000:3000 -p 8000:8000 -v $(pwd)/screenshots:/app/local-storage --cap-add=SYS_ADMIN --shm-size=2g --name reader-mcp reader-mcp
+docker-compose up -d
 ```
 
-## MCP Endpoints
+### 2. Configure Claude Desktop
 
-Once running, the MCP server will be available at:
+To use this MCP server with Claude Desktop, add the following to your Claude Desktop configuration file:
 
-```
-MCP Streamable HTTP: http://localhost:8000/
-```
-
-The Reader service runs on:
-```
-Reader Service: http://localhost:3000
-```
-
-## Configuration
-
-| Environment Variable | Default | Description |
-|---------------------|---------|-------------|
-| `READER_URL` | `http://localhost:3000` | URL of the Reader service |
-| `MCP_PORT` | `8000` | Port for the MCP server |
-| `PUPPETEER_EXECUTABLE_PATH` | `/usr/bin/google-chrome-stable` | Path to Chrome executable |
-
-## Usage with MCP Clients
-
-### Claude Desktop Configuration
-
-Add to your Claude Desktop config (`claude_desktop_config.json`):
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
 ```json
 {
   "mcpServers": {
     "reader": {
       "transport": {
-        "type": "http",
-        "url": "http://localhost:8000",
-        "streaming": true
+        "type": "sse",
+        "url": "http://localhost:8080/sse"
       }
     }
   }
 }
 ```
 
-### Direct HTTP Access
+### 3. Restart Claude Desktop
 
-You can also test the Reader service directly:
+After updating the configuration, restart Claude Desktop to load the MCP server.
 
-```bash
-# Get markdown from a URL
-curl -H "X-Respond-With: markdown" http://localhost:3000/https://example.com
+## Usage
 
-# Get HTML from a URL
-curl -H "X-Respond-With: html" http://localhost:3000/https://example.com
+Once configured, you can use the tools in Claude Desktop:
 
-# Get text from a URL
-curl -H "X-Respond-With: text" http://localhost:3000/https://example.com
+- "Fetch https://example.com as markdown"
+- "Get the HTML of https://example.com"
+- "Take a screenshot of https://example.com"
 
-# Get screenshot URL
-curl -H "X-Respond-With: screenshot" http://localhost:3000/https://example.com
+## API Endpoints
 
-# Get full-page screenshot URL
-curl -H "X-Respond-With: pageshot" http://localhost:3000/https://example.com
-```
+When running via Docker Compose, the MCP server exposes:
 
-## API Tools
-
-### get_markdown
-Converts a URL to markdown format.
-- **Parameters:** `url` (string, required)
-- **Returns:** Markdown content
-
-### get_html
-Converts a URL to HTML format.
-- **Parameters:** `url` (string, required)
-- **Returns:** HTML content
-
-### get_text
-Converts a URL to plain text format.
-- **Parameters:** `url` (string, required)
-- **Returns:** Plain text content
-
-### get_screenshot
-Takes a screen-size screenshot of a URL.
-- **Parameters:** `url` (string, required)
-- **Returns:** URL of the screenshot image
-
-### get_pageshot
-Takes a full-page screenshot of a URL.
-- **Parameters:** `url` (string, required)
-- **Returns:** URL of the full-page screenshot image
-
-## Architecture
-
-```
-┌─────────────────┐
-│   MCP Client    │
-│  (Claude, etc.) │
-└────────┬────────┘
-         │ Streamable HTTP
-         ▼
-┌─────────────────┐      ┌─────────────────┐
-│   MCP Server    │──────│  Reader Service │
-│   (Go)          │      │   (Deno+Hono)   │
-│   Port: 8000    │      │    Port: 3000    │
-└─────────────────┘      └────────┬────────┘
-                                  │
-                                  ▼
-                          ┌─────────────────┐
-                          │ browserless/    │
-                          │    chrome       │
-                          └─────────────────┘
-```
-
-## Project Structure
-
-```
-ReaderMcp/
-├── Dockerfile              # Multi-stage build with Go + Deno
-├── docker-compose.yaml     # Docker Compose configuration
-├── go.mod                  # Go module definition
-├── main.go                 # Go MCP server entry point
-├── start.sh                # Startup script
-└── deno/
-    ├── deno.json          # Deno configuration
-    ├── main.ts            # Hono server entry point
-    └── services/
-        ├── puppeteer.ts   # Puppeteer service
-        └── storage.ts     # File storage utilities
-```
+- **SSE Endpoint**: `http://localhost:8080/sse` - Server-Sent Events endpoint for MCP communication
 
 ## Development
 
-### Running locally with Deno
+### Dependencies
+
+- Go 1.23+
+- Docker (for the Reader service)
+
+### Building
 
 ```bash
-# Install Deno
-curl -fsSL https://deno.land/install.sh | sh
-
-# Run Reader service
-cd deno
-deno task dev
+go build -o reader-mcp .
 ```
 
-### Running MCP server locally (Go)
+### Running Locally
 
+1. Start the Reader service:
 ```bash
-# Run Go MCP server
-go run main.go
+docker-compose up reader -d
 ```
 
-## Based On
+2. Run the MCP server:
+```bash
+READER_ENDPOINT=http://localhost:3000 PORT=8080 go run main.go
+```
 
-This project is based on [Jina AI's Reader](https://github.com/jina-ai/reader) and the [Docker deployment version](https://github.com/intergalacticalvariable/reader) by intergalacticalvariable.
+### Environment Variables
+
+- `READER_ENDPOINT`: URL of the Reader service (default: `http://reader-container:3000`)
+- `PORT`: Port for the MCP server (default: `8080`)
 
 ## License
 
-Apache-2.0
+MIT
