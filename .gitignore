@@ -13,6 +13,9 @@ dist/
 build/
 *.egg
 
+# Deno
+.deno/
+
 # Build outputs
 backend/functions/build/
 *.js.map
@@ -48,6 +51,3 @@ coverage/
 
 # Docker
 .dockerignore
-
-# OS
-Thumbs.db

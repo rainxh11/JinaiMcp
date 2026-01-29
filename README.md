@@ -1,6 +1,6 @@
 # Reader MCP Server
 
-A FastMCP server that provides tools to convert URLs to LLM-friendly formats using the Reader service. Now with **HTTP/SSE transport** support!
+A FastMCP server that provides tools to convert URLs to LLM-friendly formats using the Reader service. Built with **Deno + Hono** for the Reader service and **Streamable HTTP** for MCP communication!
 
 ## Features
 
@@ -11,6 +11,13 @@ This MCP server provides 5 tools:
 3. **get_text** - Convert a URL to plain text format (returns document.body.innerText)
 4. **get_screenshot** - Take a screen-size screenshot of a URL
 5. **get_pageshot** - Take a full-page screenshot of a URL
+
+## Tech Stack
+
+- **Reader Service**: Deno + Hono + Puppeteer
+- **MCP Server**: Python FastMCP with Streamable HTTP transport
+- **Base Image**: browserless/chrome (Chrome/Puppeteer pre-installed)
+- **Transport**: Streamable HTTP (bidirectional streaming over HTTP)
 
 ## Quick Start with Docker
 
@@ -24,7 +31,7 @@ docker-compose up -d
 
 ```bash
 docker build -t reader-mcp .
-docker run -d -p 3000:3000 -p 8000:8000 -v $(pwd)/screenshots:/app/local-storage --name reader-mcp reader-mcp
+docker run -d -p 3000:3000 -p 8000:8000 -v $(pwd)/screenshots:/app/local-storage --cap-add=SYS_ADMIN --shm-size=2g --name reader-mcp reader-mcp
 ```
 
 ## MCP Endpoints
@@ -32,8 +39,7 @@ docker run -d -p 3000:3000 -p 8000:8000 -v $(pwd)/screenshots:/app/local-storage
 Once running, the MCP server will be available at:
 
 ```
-MCP SSE Endpoint:    http://localhost:8000/sse
-MCP Messages Endpoint: http://localhost:8000/messages
+MCP Streamable HTTP: http://localhost:8000/
 ```
 
 The Reader service runs on:
@@ -47,7 +53,6 @@ Reader Service: http://localhost:3000
 |---------------------|---------|-------------|
 | `READER_URL` | `http://localhost:3000` | URL of the Reader service |
 | `MCP_PORT` | `8000` | Port for the MCP server |
-| `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` | `true` | Skip Puppeteer chromium download |
 | `PUPPETEER_EXECUTABLE_PATH` | `/usr/bin/google-chrome-stable` | Path to Chrome executable |
 
 ## Usage with MCP Clients
@@ -61,8 +66,9 @@ Add to your Claude Desktop config (`claude_desktop_config.json`):
   "mcpServers": {
     "reader": {
       "transport": {
-        "type": "sse",
-        "url": "http://localhost:8000/sse"
+        "type": "http",
+        "url": "http://localhost:8000",
+        "streaming": true
       }
     }
   }
@@ -124,19 +130,57 @@ Takes a full-page screenshot of a URL.
 │   MCP Client    │
 │  (Claude, etc.) │
 └────────┬────────┘
-         │ HTTP/SSE
+         │ Streamable HTTP
          ▼
 ┌─────────────────┐      ┌─────────────────┐
 │   MCP Server    │──────│  Reader Service │
-│   (Python)      │      │    (Node.js)    │
+│   (Python)      │      │   (Deno+Hono)   │
 │   Port: 8000    │      │    Port: 3000    │
 └─────────────────┘      └────────┬────────┘
                                   │
                                   ▼
                           ┌─────────────────┐
-                          │   Puppeteer     │
-                          │  (Chrome)       │
+                          │ browserless/    │
+                          │    chrome       │
                           └─────────────────┘
+```
+
+## Project Structure
+
+```
+ReaderMcp/
+├── Dockerfile              # Multi-stage build with browserless/chrome
+├── docker-compose.yaml     # Docker Compose configuration
+├── requirements.txt        # Python dependencies
+├── start.py               # Startup script
+├── mcp_server/
+│   └── server.py          # MCP server with Streamable HTTP
+└── deno/
+    ├── deno.json          # Deno configuration
+    ├── main.ts            # Hono server entry point
+    └── services/
+        ├── puppeteer.ts   # Puppeteer service
+        └── storage.ts     # File storage utilities
+```
+
+## Development
+
+### Running locally with Deno
+
+```bash
+# Install Deno
+curl -fsSL https://deno.land/install.sh | sh
+
+# Run Reader service
+cd deno
+deno task dev
+```
+
+### Running MCP server locally
+
+```bash
+pip install -r requirements.txt
+python mcp_server/server.py
 ```
 
 ## Based On

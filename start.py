@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Startup script that runs both the Reader service and MCP server.
+Startup script that runs both the Reader service (Deno) and MCP server.
 """
 import subprocess
 import threading
@@ -14,11 +14,11 @@ READER_URL = os.environ.get("READER_URL", "http://localhost:3000")
 MCP_PORT = os.environ.get("MCP_PORT", "8000")
 
 def run_reader_service():
-    """Start the Reader service (Node.js)"""
+    """Start the Reader service (Deno + Hono)"""
     try:
         process = subprocess.Popen(
-            ["node", "build/server.js"],
-            cwd="/app/backend/functions",
+            ["deno", "run", "--allow-net", "--allow-read", "--allow-write", "--allow-env", "--allow-run", "--allow-sys", "main.ts"],
+            cwd="/app/deno",
             env={**os.environ, "PORT": "3000"}
         )
         process.wait()

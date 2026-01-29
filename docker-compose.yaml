@@ -6,13 +6,15 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"  # Reader service
+      - "3000:3000"  # Deno/Reader service
       - "8000:8000"  # MCP server
     volumes:
       - ./screenshots:/app/local-storage
     environment:
-      PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
-      PUPPETEER_EXECUTABLE_PATH: "/usr/bin/google-chrome-stable"
       READER_URL: "http://localhost:3000"
       MCP_PORT: "8000"
+      PUPPETEER_EXECUTABLE_PATH: "/usr/bin/google-chrome-stable"
     restart: unless-stopped
+    cap_add:
+      - SYS_ADMIN
+    shm_size: 2gb

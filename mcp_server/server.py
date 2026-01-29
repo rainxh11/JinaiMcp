@@ -8,6 +8,8 @@ This server provides 5 tools based on the Reader service:
 3. get_text - Returns document.body.innerText
 4. get_screenshot - Returns URL of screen-size screenshot
 5. get_pageshot - Returns URL of full-page screenshot
+
+Uses Streamable HTTP transport for MCP communication.
 """
 
 import os
@@ -17,23 +19,20 @@ import httpx
 
 from mcp.server.models import InitializationOptions
 from mcp.server import Server
-from mcp.server.sse import SseServerTransport
 from mcp.types import (
     Tool,
     TextContent,
 )
+import uvicorn
 from starlette.applications import Starlette
 from starlette.routing import Route
 from starlette.requests import Request
-from starlette.responses import Response
-import uvicorn
+from starlette.responses import Response, StreamingResponse, JSONResponse
+import json
 
 # Get Reader service URL from environment
 READER_URL = os.environ.get("READER_URL", "http://localhost:3000")
 MCP_PORT = int(os.environ.get("MCP_PORT", "8000"))
-
-# Create server instance
-server = Server("reader-mcp")
 
 # HTTP client for making requests to Reader service
 client = httpx.AsyncClient(timeout=60.0)
@@ -62,6 +61,10 @@ async def fetch_url(url: str, respond_with: str) -> str:
         return response.text
     except httpx.HTTPError as e:
         return f"Error fetching URL: {str(e)}"
+
+
+# Create server instance
+server = Server("reader-mcp")
 
 
 @server.list_tools()
@@ -166,51 +169,83 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
     return [TextContent(type="text", text=result)]
 
 
-# Starlette app for SSE transport
-starlette_app = Starlette(
+# Streamable HTTP endpoint using Starlette
+async def handle_streamable_http(request: Request):
+    """Handle Streamable HTTP MCP connections."""
+    if request.method == "GET":
+        # Return server info for GET requests
+        return JSONResponse({
+            "name": "reader-mcp",
+            "version": "1.0.0",
+            "description": "MCP server for Reader URL to LLM-friendly conversion"
+        })
+
+    # Handle POST requests with MCP messages
+    body = await request.json()
+    method = body.get("method")
+
+    # Initialize response
+    response = {
+        "jsonrpc": "2.0",
+        "id": body.get("id")
+    }
+
+    if method == "tools/list":
+        tools = await handle_list_tools()
+        response["result"] = {
+            "tools": [tool.model_dump() for tool in tools]
+        }
+    elif method == "tools/call":
+        params = body.get("params", {})
+        name = params.get("name")
+        arguments = params.get("arguments", {})
+        results = await handle_call_tool(name, arguments)
+        response["result"] = {
+            "content": [r.model_dump() for r in results]
+        }
+    elif method == "initialize":
+        response["result"] = {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {
+                "tools": {}
+            },
+            "serverInfo": {
+                "name": "reader-mcp",
+                "version": "1.0.0"
+            }
+        }
+    else:
+        response["error"] = {
+            "code": -32601,
+            "message": f"Method not found: {method}"
+        }
+
+    return JSONResponse(response)
+
+
+# Create Starlette app
+app = Starlette(
     debug=False,
     routes=[
-        Route("/sse", endpoint=lambda req: handle_sse(req))
+        Route("/", handle_streamable_http, methods=["GET", "POST"])
     ]
 )
 
 
-async def handle_sse(request: Request):
-    """Handle SSE connections."""
-    transport = SseServerTransport("/messages")
-
-    async with transport.connect_sse(
-        request.scope, request.receive, request._send
-    ) as streams:
-        await server.run(
-            streams[0],
-            streams[1],
-            InitializationOptions(
-                server_name="reader-mcp",
-                server_version="1.0.0",
-                capabilities=server.get_capabilities(
-                    notification_options=None,
-                    experimental_capabilities={},
-                ),
-            ),
-        )
-
-
 async def main():
-    """Main entry point for the HTTP MCP server."""
-    print(f"Starting MCP server on port {MCP_PORT}...")
-    print(f"Reader service URL: {READER_URL}")
-    print(f"MCP SSE endpoint: http://0.0.0.0:{MCP_PORT}/sse")
-    print(f"MCP messages endpoint: http://0.0.0.0:{MCP_PORT}/messages")
+    """Main entry point for the Streamable HTTP MCP server."""
+    print(f"Starting MCP server on port {MCP_PORT}...", flush=True)
+    print(f"Reader service URL: {READER_URL}", flush=True)
+    print(f"MCP Streamable HTTP endpoint: http://0.0.0.0:{MCP_PORT}/", flush=True)
 
     config = uvicorn.Config(
-        starlette_app,
+        app,
         host="0.0.0.0",
         port=MCP_PORT,
         log_level="info"
     )
-    server = uvicorn.Server(config)
-    await server.serve()
+    server_instance = uvicorn.Server(config)
+    await server_instance.serve()
 
 
 if __name__ == "__main__":
