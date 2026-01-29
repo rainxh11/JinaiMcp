@@ -40,8 +40,9 @@ RUN go build -o mcp-server .
 # Copy Deno config and source files
 COPY deno /app/deno
 
+RUN chmod 777 /app/deno
 # Cache Deno dependencies
-RUN deno cache --allow-net --allow-read --allow-write --allow-env --allow-run --allow-sys /app/deno/main.ts || true
+RUN deno cache /app/deno/main.ts
 
 # Create local storage directory with proper permissions
 RUN mkdir -p /app/local-storage/instant-screenshots && \
@@ -54,4 +55,4 @@ RUN mkdir -p /app/local-storage/instant-screenshots && \
 EXPOSE 3000 8000
 
 # Start both services
-CMD ["sh", "-c", "deno run --allow-net --allow-read --allow-write --allow-env --allow-run --allow-sys /app/deno/main.ts & ./mcp-server"]
+CMD ["sh", "-c", "deno run --cached-only -A /app/deno/main.ts & ./mcp-server"]
