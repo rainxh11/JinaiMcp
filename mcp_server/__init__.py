@@ -1,1 +1,0 @@
-"""Reader MCP Server package."""

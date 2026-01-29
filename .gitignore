@@ -16,10 +16,21 @@ build/
 # Deno
 .deno/
 
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+
 # Build outputs
 backend/functions/build/
 *.js.map
 *.d.ts
+mcp-server
 
 # Environment
 .env
@@ -51,3 +62,6 @@ coverage/
 
 # Docker
 .dockerignore
+
+# Python removed (not used anymore)
+mcp_server/

@@ -1,6 +1,6 @@
 # Reader MCP Server
 
-A FastMCP server that provides tools to convert URLs to LLM-friendly formats using the Reader service. Built with **Deno + Hono** for the Reader service and **Streamable HTTP** for MCP communication!
+A FastMCP server that provides tools to convert URLs to LLM-friendly formats using the Reader service. Built with **Deno + Hono** for the Reader service and **Go** for the MCP server with Streamable HTTP transport!
 
 ## Features
 
@@ -15,7 +15,7 @@ This MCP server provides 5 tools:
 ## Tech Stack
 
 - **Reader Service**: Deno + Hono + Puppeteer
-- **MCP Server**: Python FastMCP with Streamable HTTP transport
+- **MCP Server**: Go with Streamable HTTP transport
 - **Base Image**: browserless/chrome (Chrome/Puppeteer pre-installed)
 - **Transport**: Streamable HTTP (bidirectional streaming over HTTP)
 
@@ -134,7 +134,7 @@ Takes a full-page screenshot of a URL.
          ▼
 ┌─────────────────┐      ┌─────────────────┐
 │   MCP Server    │──────│  Reader Service │
-│   (Python)      │      │   (Deno+Hono)   │
+│   (Go)          │      │   (Deno+Hono)   │
 │   Port: 8000    │      │    Port: 3000    │
 └─────────────────┘      └────────┬────────┘
                                   │
@@ -149,12 +149,11 @@ Takes a full-page screenshot of a URL.
 
 ```
 ReaderMcp/
-├── Dockerfile              # Multi-stage build with browserless/chrome
+├── Dockerfile              # Multi-stage build with Go + Deno
 ├── docker-compose.yaml     # Docker Compose configuration
-├── requirements.txt        # Python dependencies
-├── start.py               # Startup script
-├── mcp_server/
-│   └── server.py          # MCP server with Streamable HTTP
+├── go.mod                  # Go module definition
+├── main.go                 # Go MCP server entry point
+├── start.sh                # Startup script
 └── deno/
     ├── deno.json          # Deno configuration
     ├── main.ts            # Hono server entry point
@@ -176,11 +175,11 @@ cd deno
 deno task dev
 ```
 
-### Running MCP server locally
+### Running MCP server locally (Go)
 
 ```bash
-pip install -r requirements.txt
-python mcp_server/server.py
+# Run Go MCP server
+go run main.go
 ```
 
 ## Based On
