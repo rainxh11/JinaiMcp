@@ -26,7 +26,7 @@ WORKDIR /root/
 COPY --from=builder /app/reader-mcp .
 
 # Set the default reader endpoint and port (can be overridden by env var)
-ENV READER_ENDPOINT=http://reader-container:3000
+ENV READER_ENDPOINT=http://reader:3000
 ENV PORT=8080
 
 # Expose the HTTP port
