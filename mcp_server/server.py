@@ -17,14 +17,20 @@ import httpx
 
 from mcp.server.models import InitializationOptions
 from mcp.server import Server
-from mcp.server.stdio import stdio_server
+from mcp.server.sse import SseServerTransport
 from mcp.types import (
     Tool,
     TextContent,
 )
+from starlette.applications import Starlette
+from starlette.routing import Route
+from starlette.requests import Request
+from starlette.responses import Response
+import uvicorn
 
 # Get Reader service URL from environment
 READER_URL = os.environ.get("READER_URL", "http://localhost:3000")
+MCP_PORT = int(os.environ.get("MCP_PORT", "8000"))
 
 # Create server instance
 server = Server("reader-mcp")
@@ -160,12 +166,25 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
     return [TextContent(type="text", text=result)]
 
 
-async def main():
-    """Main entry point for the MCP server."""
-    async with stdio_server() as (read_stream, write_stream):
+# Starlette app for SSE transport
+starlette_app = Starlette(
+    debug=False,
+    routes=[
+        Route("/sse", endpoint=lambda req: handle_sse(req))
+    ]
+)
+
+
+async def handle_sse(request: Request):
+    """Handle SSE connections."""
+    transport = SseServerTransport("/messages")
+
+    async with transport.connect_sse(
+        request.scope, request.receive, request._send
+    ) as streams:
         await server.run(
-            read_stream,
-            write_stream,
+            streams[0],
+            streams[1],
             InitializationOptions(
                 server_name="reader-mcp",
                 server_version="1.0.0",
@@ -175,6 +194,23 @@ async def main():
                 ),
             ),
         )
+
+
+async def main():
+    """Main entry point for the HTTP MCP server."""
+    print(f"Starting MCP server on port {MCP_PORT}...")
+    print(f"Reader service URL: {READER_URL}")
+    print(f"MCP SSE endpoint: http://0.0.0.0:{MCP_PORT}/sse")
+    print(f"MCP messages endpoint: http://0.0.0.0:{MCP_PORT}/messages")
+
+    config = uvicorn.Config(
+        starlette_app,
+        host="0.0.0.0",
+        port=MCP_PORT,
+        log_level="info"
+    )
+    server = uvicorn.Server(config)
+    await server.serve()
 
 
 if __name__ == "__main__":

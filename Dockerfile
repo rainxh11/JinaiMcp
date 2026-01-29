@@ -7,18 +7,13 @@ RUN apt-get update && apt-get install -y \
     libmagic-dev \
     build-essential \
     python3 \
+    python3-pip \
     wget \
     gnupg \
     && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
     && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
     && apt-get update \
     && apt-get install -y google-chrome-stable \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Python for MCP server
-RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables for Puppeteer
@@ -55,8 +50,13 @@ RUN mkdir -p /app/mcp_server
 # Copy MCP server files
 COPY mcp_server /app/mcp_server
 
-# Expose the port the reader app runs on
-EXPOSE 3000
+# Copy startup script
+COPY start.py .
+
+# Expose ports
+# 3000 - Reader service
+# 8000 - MCP server
+EXPOSE 3000 8000
 
 # Start both the reader app and MCP server using a supervisor script
 CMD ["python3", "start.py"]

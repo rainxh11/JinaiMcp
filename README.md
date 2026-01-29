@@ -1,6 +1,6 @@
 # Reader MCP Server
 
-A FastMCP server that provides tools to convert URLs to LLM-friendly formats using the Reader service.
+A FastMCP server that provides tools to convert URLs to LLM-friendly formats using the Reader service. Now with **HTTP/SSE transport** support!
 
 ## Features
 
@@ -24,18 +24,35 @@ docker-compose up -d
 
 ```bash
 docker build -t reader-mcp .
-docker run -d -p 3000:3000 -v $(pwd)/screenshots:/app/local-storage --name reader-mcp reader-mcp
+docker run -d -p 3000:3000 -p 8000:8000 -v $(pwd)/screenshots:/app/local-storage --name reader-mcp reader-mcp
+```
+
+## MCP Endpoints
+
+Once running, the MCP server will be available at:
+
+```
+MCP SSE Endpoint:    http://localhost:8000/sse
+MCP Messages Endpoint: http://localhost:8000/messages
+```
+
+The Reader service runs on:
+```
+Reader Service: http://localhost:3000
 ```
 
 ## Configuration
 
-The following environment variables can be configured:
-
-- `READER_URL` - URL of the Reader service (default: `http://localhost:3000`)
-- `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` - Skip Puppeteer chromium download (default: `true`)
-- `PUPPETEER_EXECUTABLE_PATH` - Path to Chrome executable (default: `/usr/bin/google-chrome-stable`)
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `READER_URL` | `http://localhost:3000` | URL of the Reader service |
+| `MCP_PORT` | `8000` | Port for the MCP server |
+| `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` | `true` | Skip Puppeteer chromium download |
+| `PUPPETEER_EXECUTABLE_PATH` | `/usr/bin/google-chrome-stable` | Path to Chrome executable |
 
 ## Usage with MCP Clients
+
+### Claude Desktop Configuration
 
 Add to your Claude Desktop config (`claude_desktop_config.json`):
 
@@ -43,58 +60,84 @@ Add to your Claude Desktop config (`claude_desktop_config.json`):
 {
   "mcpServers": {
     "reader": {
-      "command": "docker",
-      "args": ["run", "-i", "--rm", "reader-mcp"]
+      "transport": {
+        "type": "sse",
+        "url": "http://localhost:8000/sse"
+      }
     }
   }
 }
 ```
 
+### Direct HTTP Access
+
+You can also test the Reader service directly:
+
+```bash
+# Get markdown from a URL
+curl -H "X-Respond-With: markdown" http://localhost:3000/https://example.com
+
+# Get HTML from a URL
+curl -H "X-Respond-With: html" http://localhost:3000/https://example.com
+
+# Get text from a URL
+curl -H "X-Respond-With: text" http://localhost:3000/https://example.com
+
+# Get screenshot URL
+curl -H "X-Respond-With: screenshot" http://localhost:3000/https://example.com
+
+# Get full-page screenshot URL
+curl -H "X-Respond-With: pageshot" http://localhost:3000/https://example.com
+```
+
 ## API Tools
 
 ### get_markdown
-
 Converts a URL to markdown format.
-
-**Parameters:**
-- `url` (string, required): The URL to fetch and convert
-
-**Example:**
-```
-Call get_markdown with url="https://example.com"
-```
+- **Parameters:** `url` (string, required)
+- **Returns:** Markdown content
 
 ### get_html
-
 Converts a URL to HTML format.
-
-**Parameters:**
-- `url` (string, required): The URL to fetch and convert
+- **Parameters:** `url` (string, required)
+- **Returns:** HTML content
 
 ### get_text
-
 Converts a URL to plain text format.
-
-**Parameters:**
-- `url` (string, required): The URL to fetch and convert
+- **Parameters:** `url` (string, required)
+- **Returns:** Plain text content
 
 ### get_screenshot
-
 Takes a screen-size screenshot of a URL.
-
-**Parameters:**
-- `url` (string, required): The URL to screenshot
-
-**Returns:** URL of the screenshot image
+- **Parameters:** `url` (string, required)
+- **Returns:** URL of the screenshot image
 
 ### get_pageshot
-
 Takes a full-page screenshot of a URL.
+- **Parameters:** `url` (string, required)
+- **Returns:** URL of the full-page screenshot image
 
-**Parameters:**
-- `url` (string, required): The URL to screenshot
+## Architecture
 
-**Returns:** URL of the full-page screenshot image
+```
+┌─────────────────┐
+│   MCP Client    │
+│  (Claude, etc.) │
+└────────┬────────┘
+         │ HTTP/SSE
+         ▼
+┌─────────────────┐      ┌─────────────────┐
+│   MCP Server    │──────│  Reader Service │
+│   (Python)      │      │    (Node.js)    │
+│   Port: 8000    │      │    Port: 3000    │
+└─────────────────┘      └────────┬────────┘
+                                  │
+                                  ▼
+                          ┌─────────────────┐
+                          │   Puppeteer     │
+                          │  (Chrome)       │
+                          └─────────────────┘
+```
 
 ## Based On
 

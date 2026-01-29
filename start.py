@@ -11,6 +11,7 @@ import sys
 
 # Reader service URL from environment
 READER_URL = os.environ.get("READER_URL", "http://localhost:3000")
+MCP_PORT = os.environ.get("MCP_PORT", "8000")
 
 def run_reader_service():
     """Start the Reader service (Node.js)"""
@@ -29,12 +30,10 @@ def run_mcp_server():
     # Wait a bit for reader service to start
     time.sleep(3)
     try:
-        process = subprocess.Popen(
-            ["python3", "-m", "mcp_server.server"],
-            cwd="/app",
-            env={**os.environ, "READER_URL": READER_URL}
-        )
-        process.wait()
+        # Run the MCP server directly
+        import asyncio
+        from mcp_server.server import main as mcp_main
+        asyncio.run(mcp_main())
     except Exception as e:
         print(f"MCP server error: {e}", flush=True)
 
@@ -50,6 +49,7 @@ signal.signal(signal.SIGINT, handler)
 if __name__ == "__main__":
     print("Starting Reader MCP Server...", flush=True)
     print(f"Reader URL: {READER_URL}", flush=True)
+    print(f"MCP Port: {MCP_PORT}", flush=True)
 
     # Start reader service in a thread
     reader_thread = threading.Thread(target=run_reader_service, daemon=True)
